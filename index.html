@@ -608,22 +608,75 @@ document.addEventListener('click', (e) => {
   spawnHeart(e.clientX, e.clientY);
 });
 
-// ── Music Button ──
+// ── Music Box (Web Audio API) ──
 const musicBtn = document.getElementById('musicBtn');
 let musicPlaying = false;
-// Audio context for optional background music — create but don't play till user clicks
 let audioCtx = null;
+let musicGain = null;
+let musicTimer = null;
+
+// Pentatonic scale — gentle, no wrong notes
+const NOTES = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66];
+// Music box melody: [noteIndex, timeOffset, duration]
+const MELODY = [
+  [2, 0, 0.6], [4, 0.4, 0.5], [3, 0.8, 0.4], [1, 1.2, 0.5],
+  [2, 1.6, 0.6], [0, 2.0, 0.5], [1, 2.4, 0.8],
+  [3, 3.0, 0.5], [2, 3.4, 0.4], [1, 3.8, 0.5], [0, 4.2, 0.6],
+  [2, 4.8, 0.5], [4, 5.2, 0.6], [3, 5.6, 0.5], [5, 6.0, 0.7],
+  [3, 6.8, 0.5], [2, 7.2, 0.4], [1, 7.6, 0.5], [2, 8.0, 0.8],
+  [4, 8.8, 0.5], [3, 9.2, 0.5], [1, 9.6, 0.4], [0, 10.0, 0.6],
+  [1, 10.6, 0.5], [2, 11.0, 0.5], [3, 11.4, 0.8],
+  [2, 12.2, 0.5], [1, 12.6, 0.5], [0, 13.0, 0.6], [1, 13.4, 1.0],
+];
+const MELODY_DURATION = 14.4; // seconds for one loop
+
+function playNote(freq, startTime, dur) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+  osc.connect(gain);
+  gain.connect(musicGain);
+  osc.start(startTime);
+  osc.stop(startTime + dur);
+}
+
+function scheduleLoop() {
+  if (!musicPlaying) return;
+  const now = audioCtx.currentTime;
+  for (const [noteIdx, offset, dur] of MELODY) {
+    playNote(NOTES[noteIdx], now + offset, dur);
+  }
+  musicTimer = setTimeout(scheduleLoop, MELODY_DURATION * 1000 - 50);
+}
+
+function startMusic() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = 0.5;
+    musicGain.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  musicPlaying = true;
+  scheduleLoop();
+  musicBtn.classList.add('playing');
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  if (musicTimer) clearTimeout(musicTimer);
+  musicBtn.classList.remove('playing');
+}
 
 musicBtn.addEventListener('click', () => {
   if (!musicPlaying) {
-    // Placeholder: user can add actual audio file
-    musicBtn.classList.add('playing');
-    musicBtn.textContent = '♪';
-    musicPlaying = true;
+    startMusic();
   } else {
-    musicBtn.classList.remove('playing');
-    musicBtn.textContent = '♪';
-    musicPlaying = false;
+    stopMusic();
   }
 });
 
